@@ -1861,3 +1861,6 @@ X(WD)
 X(OFX)
 X(F)
 X(CCU2_INJECT1)
+
+X(mmi)
+X(mmi_swizzle)

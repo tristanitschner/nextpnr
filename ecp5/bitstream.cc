@@ -29,6 +29,7 @@
 #include "log.h"
 #include "pio.h"
 #include "util.h"
+#include "mmi.h"
 
 #define fmt_str(x) (static_cast<const std::ostringstream &>(std::ostringstream() << x).str())
 
@@ -991,6 +992,7 @@ struct ECP5Bitgen
         }
     }
 
+	std::map<std::string, mmi> mmi_defs;
     void write_bram(CellInfo *ci)
     {
         TileGroup tg;
@@ -1473,6 +1475,39 @@ struct ECP5Bitgen
                 cc.tiles[tile].add_enum(dcs + ".DCSMODE", str_or_default(ci->attrs, id_DCSMODE, "POS"));
             } else if (ci->type == id_DP16KD) {
                 write_bram(ci);
+				if ( ci->attrs.count(id_mmi) ) {
+					auto name     = ci->name.str(ctx);
+					auto instname = ci->hierpath.str(ctx) + "." + mmi::instname(name);
+					auto row      = mmi::row(name);
+					auto column   = mmi::column(name);
+					if (mmi_defs.find(instname) == mmi_defs.end())
+						mmi_defs[instname].name = instname;
+					if ( ci->attrs.count(id_mmi_swizzle) ) {
+						// printf("Found mii_swizzle attr %s\n", ci->attrs[id_mmi_swizzle].to_string().c_str());
+						mmi_defs[instname].swizzle = ci->attrs[id_mmi_swizzle].to_string().c_str();
+					}
+					Loc loc = ctx->getBelLocation(ci->bel);
+					std::string ebr = "EBR" + std::to_string(loc.z);
+					printf("at bram %s\n", ebr.c_str());
+					mmi_defs[instname].mapping[std::to_string(row) + "." + std::to_string(column)] = ebr;
+				}
+					/*
+					bool mmi_found = false;
+					for (auto & mmi : mmi_defs) {
+						if (hiername == mmi.name) {
+							mmi_found = true;
+						}
+					}
+					if (!mmi_found) {
+						struct mmi current_mmi;
+						current_mmi.name = mmi::instname(ci->hierpath.str(ctx) + "." + ci->name.str(ctx));
+						mmi_defs.push_back(current_mmi);
+					}
+				}
+				if ( ci->attrs.count(id_mmi_swizzle) ) {
+					printf("Found mii_swizzle attr %s\n", ci->attrs[id_mmi_swizzle].to_string().c_str());
+				}
+				*/
             } else if (ci->type == id_MULT18X18D) {
                 write_mult18(ci);
             } else if (ci->type == id_ALU54B) {
@@ -1562,6 +1597,11 @@ struct ECP5Bitgen
                 NPNR_ASSERT_FALSE("unsupported cell type");
             }
         }
+
+		// write_mmi
+		for ( auto & mmi : mmi_defs ) {
+			mmi.second.write_json(mmi.first + ".json");
+		}
 
         // Add some SYSCONFIG settings
         const std::string prefix = "arch.sysconfig.";
